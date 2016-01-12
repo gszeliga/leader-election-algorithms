@@ -1,0 +1,18 @@
+<configuration>
+    
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <withJansi>true</withJansi>
+        <encoder>
+            <pattern>[%d{ISO8601}][%highlight(%-5level)][%logger{5}][%thread] - %m %n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="ASYNC-STDOUT" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="STDOUT"/>
+    </appender>
+
+
+    <root level="DEBUG">
+        <appender-ref ref="ASYNC-STDOUT"/>
+    </root>
+</configuration>
