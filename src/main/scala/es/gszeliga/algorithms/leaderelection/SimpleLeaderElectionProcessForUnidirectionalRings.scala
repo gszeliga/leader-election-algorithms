@@ -22,7 +22,7 @@ object SimpleLeaderElectionProcessForUnidirectionalRings{
 
 //Elects the process with the highest identity among the processes whose participation in the algorithm is
 //due to the reception of a START() message
-class SimpleLeaderElectionProcessForUnidirectionalRingsVariant[V](val pid: ID[V]) extends Actor with ActorLogging{
+class SimpleLeaderElectionProcessForUnidirectionalRingsVariant[V](val myself: ID[V]) extends Actor with ActorLogging{
 
   var next:Option[ActorRef] = None
   var idmax:Option[ID[V]] = None
@@ -37,8 +37,8 @@ class SimpleLeaderElectionProcessForUnidirectionalRingsVariant[V](val pid: ID[V]
     }
     case Start() if idmax.isEmpty => {
       log.info(s"\t> Start message has been received and yet no max identifier available")
-      idmax=Some(pid)
-      promoteElectionOf(pid)
+      idmax=Some(myself)
+      promoteElectionOf(myself)
     }
     case Start() => {
       log.info(s"\t> Election already started. Current max ID @> $idmax")
@@ -51,11 +51,11 @@ class SimpleLeaderElectionProcessForUnidirectionalRingsVariant[V](val pid: ID[V]
       idmax.foreach(max => {
         val comparison = id.compareTo(max)
 
-        if(comparison == -1){
+        if(comparison == 1){
           idmax=Option(id.asInstanceOf[ID[V]])
           promoteElectionOf(id)
         }
-        else if(comparison == 1){
+        else if(comparison == -1){
           //skip
         }
         else{
@@ -69,7 +69,7 @@ class SimpleLeaderElectionProcessForUnidirectionalRingsVariant[V](val pid: ID[V]
       leader=Some(id.asInstanceOf[ID[V]])
       done=true
 
-      if(pid != id) {
+      if(myself != id) {
         elected=false
         notifyElectionOf(id)
       }
@@ -93,7 +93,7 @@ class SimpleLeaderElectionProcessForUnidirectionalRingsVariant[V](val pid: ID[V]
 }
 
 //Cost: O(n)^2
-class SimpleLeaderElectionProcessForUnidirectionalRings[V](val pid: ID[V]) extends Actor with ActorLogging{
+class SimpleLeaderElectionProcessForUnidirectionalRings[V](val myself: ID[V]) extends Actor with ActorLogging{
 
   var participates = false
   var elected = false
@@ -108,16 +108,16 @@ class SimpleLeaderElectionProcessForUnidirectionalRings[V](val pid: ID[V]) exten
     }
     case Start() if !participates => {
       log.debug(s"[START]> Starting election process")
-      promoteElectionOf(pid)
+      promoteElectionOf(myself)
     }
     case Election(id) => {
 
-      val comparison = id.compareTo(pid)
+      val comparison = id.compareTo(myself)
 
       if(comparison == 1) promoteElectionOf(id)
       else if(comparison == -1){
         //We only send our election promotion if we don't participate in the current election yet
-        if(!participates) promoteElectionOf(pid)
+        if(!participates) promoteElectionOf(myself)
       }
       else {
         elected=true
@@ -128,7 +128,7 @@ class SimpleLeaderElectionProcessForUnidirectionalRings[V](val pid: ID[V]) exten
       leader=Some(id.asInstanceOf[ID[V]])
       done=true
 
-      if(pid != id) {
+      if(myself != id) {
         elected=false
         notifyElectionOf(id)
       }
