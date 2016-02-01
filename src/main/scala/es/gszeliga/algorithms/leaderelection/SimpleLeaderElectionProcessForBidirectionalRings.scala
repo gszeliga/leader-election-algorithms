@@ -27,19 +27,32 @@ object SimpleLeaderElectionProcessForBidirectionalRings{
 //Hirschberg and Sinclair’s election algorithm
 class SimpleLeaderElectionProcessForBidirectionalRings[V](val myself: ID[V]) extends Actor with ActorLogging{
 
-  private var left = Option.empty[ActorRef]
-  private var right = Option.empty[ActorRef]
-  private var elected = false
+  protected[leaderelection] var left = Option.empty[ActorRef]
+  protected[leaderelection] var right = Option.empty[ActorRef]
+
   private var replies = BitSet(2)
+  private var leader = Option.empty[ActorRef]
+
+  private var elected = false
+  private var done = false
+
+  private val LEFT_SIDE = 1
+  private val RIGHT_SIDE = 1
 
   def receive = {
 
     case Config(leftRef,rightRef) => {
+
+      log.debug(s"> Configuration received  [${leftRef.path}] <= [$myself] => [${rightRef.path}]")
+
       left = Option(leftRef)
       right = Option(rightRef)
     }
 
     case Start() =>{
+
+      log.info("> Starting election ...")
+
       left.foreach(_ ! Election(myself,0,1))
       right.foreach(_ ! Election(myself,0,1))
     }
@@ -51,8 +64,8 @@ class SimpleLeaderElectionProcessForBidirectionalRings[V](val myself: ID[V]) ext
       if(comparison == 1){
         //If still did not cover all of our neighbours
         if(distance < (2^round)){
-          //Continue in the same direction as the message came broadcasting the election of incoming id
-          oppositeTo(sender()) foreach(ref => ref ! Election(id,round,distance+1))
+          //Continue in the same direction as the message came in broadcasting the election of incoming id
+          oppositeSideTo(sender()) foreach(_ ! Election(id,round,distance+1))
         }
         else
         {
@@ -66,8 +79,9 @@ class SimpleLeaderElectionProcessForBidirectionalRings[V](val myself: ID[V]) ext
       }
       else
       {
-        //We've got elected!
-        sender() ! Elected(id)
+        //Since the Election message visited all processes within the ring,
+        // we've got elected! (notice how we start our elected cycle from the left)
+        left foreach (_ ! Elected(id))
         elected = true
       }
     }
@@ -77,44 +91,63 @@ class SimpleLeaderElectionProcessForBidirectionalRings[V](val myself: ID[V]) ext
       if(id != myself)
       {
         //Forward incoming message in the same direction
-        oppositeTo(sender()) foreach (_ ! Reply(id,round))
+        oppositeSideTo(sender()) foreach (_ ! Reply(id,round))
       }
       else{
-        if(gotReplyFrom(oppositeTo(sender()))) {
-          left.foreach(ref => ref ! Election(myself,round+1,1))
-          right.foreach(ref => ref ! Election(myself,round+1,1))
+        //Did we already get a Reply message from the opposite side?
+        // If so, we can start a new election round (we've got the
+        // highest identity in both neighbourhoods of size 2^round
+        if(gotReplyFrom(oppositeSideTo(sender()))) {
+          left.foreach(_ ! Election(myself,round+1,1))
+          right.foreach(_ ! Election(myself,round+1,1))
         }
         else
         {
+          //Otherwise, we just flag the Reply message and wait for the opposite side
           markReplyFrom(sender())
         }
-
       }
+    }
+
+    //We only process election messages only if it comes from our right neighbour
+    case Elected(id) if right.contains(sender())=> {
+
+      leader = Option(id.asInstanceOf)
+      done = true
+
+      if(id != myself){
+        elected = false
+        //Forward elected leader message following the same direction
+        left foreach(_ ! Elected(id))
+      }
+
     }
   }
 
-  private def oppositeTo(ref: ActorRef) = {
-    if(ref == left.get) right
+  private def oppositeSideTo(ref: ActorRef) = {
+    if(left.contains(ref)) right
     else left
   }
 
   private def gotReplyFrom(ref: Option[ActorRef]) = {
 
-    ref.exists(r => {
-      if (r == left.get)
-        replies(1)
+    ref.exists(reference => {
+      //If passed reference equals our left neighbour
+      if (left.contains(reference))
+        replies(LEFT_SIDE)
       else
-        replies(0)
+        //Then check on our right neighbour
+        replies(RIGHT_SIDE)
     })
 
   }
 
   private def markReplyFrom(ref: ActorRef) = {
 
-    if(ref == left.get)
-      replies = replies + 1
+    if(left.contains(ref))
+      replies = replies + LEFT_SIDE
     else
-      replies = replies + 0
+      replies = replies + RIGHT_SIDE
   }
 
 }
