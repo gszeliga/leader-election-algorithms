@@ -1,13 +1,13 @@
 package es.gszeliga.algorithms.leaderelection
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import es.gszeliga.algorithms.leaderelection.SimpleLeaderElectionProcessForUnidirectionalRings._
+import es.gszeliga.algorithms.leaderelection.LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings._
 
 /**
   * Created by guillermo on 11/01/16.
   */
 
-object SimpleLeaderElectionProcessForUnidirectionalRings{
+object LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings{
 
   type ID[V] = Comparable[V]
 
@@ -16,13 +16,13 @@ object SimpleLeaderElectionProcessForUnidirectionalRings{
   case class Election[V](id: ID[V])
   case class Elected[V](id: ID[V])
 
-  def props[V](pid: ID[V]) = Props(new SimpleLeaderElectionProcessForUnidirectionalRings[V](pid))
+  def props[V](pid: ID[V]) = Props(new LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings[V](pid))
 
 }
 
 //Elects the process with the highest identity among the processes whose participation in the algorithm is
 //due to the reception of a START() message
-class SimpleLeaderElectionProcessForUnidirectionalRingsVariant[V](val myself: ID[V]) extends Actor with ActorLogging{
+class LeLannChangRobertsLeaderElectionProcessForUnidirectionalRingsVariant[V](val myself: ID[V]) extends Actor with ActorLogging{
 
   var next:Option[ActorRef] = None
   var idmax:Option[ID[V]] = None
@@ -91,9 +91,9 @@ class SimpleLeaderElectionProcessForUnidirectionalRingsVariant[V](val myself: ID
   }
 
 }
-
+//LeLann-Chang-Roberts algorithm
 //Cost: O(n)^2
-class SimpleLeaderElectionProcessForUnidirectionalRings[V](val myself: ID[V]) extends Actor with ActorLogging{
+class LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings[V](val myself: ID[V]) extends Actor with ActorLogging{
 
   var participates = false
   var elected = false

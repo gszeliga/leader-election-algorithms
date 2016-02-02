@@ -2,15 +2,15 @@ package es.gszeliga.algorithms.leaderelection
 
 import akka.actor.ActorSystem
 import akka.testkit.{TestActorRef, TestKit}
-import es.gszeliga.algorithms.leaderelection.SimpleLeaderElectionProcessForUnidirectionalRings.{Elected, Config, Election, Start}
+import es.gszeliga.algorithms.leaderelection.LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings.{Elected, Config, Election, Start}
 import org.scalatest.{FlatSpecLike, Matchers}
 
 /**
   * Created by guillermo on 12/01/16.
   */
-class TestSimpleLeaderElectionProcessForUnidirectionalRings extends TestKit(ActorSystem("test")) with FlatSpecLike with Matchers {
+class TestLeLannChangRobertsLeaderElectionProcessForUnidirectionalRings extends TestKit(ActorSystem("test")) with FlatSpecLike with Matchers {
 
-  val process = TestActorRef(new SimpleLeaderElectionProcessForUnidirectionalRings(20))
+  val process = TestActorRef(new LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings(20))
 
   "A simple-election process" should "properly be configured" in {
     process ! Config(testActor)

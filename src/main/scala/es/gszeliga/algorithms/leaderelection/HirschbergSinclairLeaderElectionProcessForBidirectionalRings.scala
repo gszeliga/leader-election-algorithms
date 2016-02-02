@@ -1,7 +1,7 @@
 package es.gszeliga.algorithms.leaderelection
 
 import akka.actor.{Props, ActorRef, ActorLogging, Actor}
-import es.gszeliga.algorithms.leaderelection.SimpleLeaderElectionProcessForBidirectionalRings._
+import es.gszeliga.algorithms.leaderelection.HirschbergSinclairLeaderElectionProcessForBidirectionalRings._
 
 import scala.collection.BitSet
 
@@ -10,7 +10,7 @@ import scala.collection.BitSet
   */
 
 
-object SimpleLeaderElectionProcessForBidirectionalRings{
+object HirschbergSinclairLeaderElectionProcessForBidirectionalRings{
 
   type ID[V] = Comparable[V]
 
@@ -20,12 +20,13 @@ object SimpleLeaderElectionProcessForBidirectionalRings{
   sealed case class Reply[V](id: ID[V], round: Int)
   sealed case class Elected[V](id: ID[V])
 
-  def props[V](pid: ID[V]) = Props(new SimpleLeaderElectionProcessForBidirectionalRings[V](pid))
+  def props[V](pid: ID[V]) = Props(new HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](pid))
 
 }
 
 //Hirschberg and Sinclair’s election algorithm
-class SimpleLeaderElectionProcessForBidirectionalRings[V](val myself: ID[V]) extends Actor with ActorLogging{
+//Cost: O(n log n)
+class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself: ID[V]) extends Actor with ActorLogging{
 
   protected[leaderelection] var left = Option.empty[ActorRef]
   protected[leaderelection] var right = Option.empty[ActorRef]
@@ -57,13 +58,21 @@ class SimpleLeaderElectionProcessForBidirectionalRings[V](val myself: ID[V]) ext
       right.foreach(_ ! Election(myself,0,1))
     }
 
-    case Election(id,round,distance) => {
+    case m @ Election(id,round,distance) => {
+
       val comparison = id.compareTo(myself)
+
 
       //Greater than
       if(comparison == 1){
+
+        log.debug(s"> [id: $myself] Incoming id '$id' is greater than mine. Verifying if distance '$distance' covers round '$round'")
+
         //If still did not cover all of our neighbours
         if(distance < (2^round)){
+
+          log.info(s"> [id: $myself] Still need to go over more candidates. Forwarding '$m' message to next neighbour")
+
           //Continue in the same direction as the message came in broadcasting the election of incoming id
           oppositeSideTo(sender()) foreach(_ ! Election(id,round,distance+1))
         }
