@@ -38,7 +38,7 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
   private var done = false
 
   private val LEFT_SIDE = 1
-  private val RIGHT_SIDE = 1
+  private val RIGHT_SIDE = 0
 
   def receive = {
 
@@ -62,14 +62,13 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
 
       val comparison = id.compareTo(myself)
 
-
       //Greater than
       if(comparison == 1){
 
         log.debug(s"> [id: $myself] Incoming id '$id' is greater than mine. Verifying if distance '$distance' covers round '$round'")
 
-        //If still did not cover all of our neighbours
-        if(distance < (2^round)){
+        //If still did not cover all of our neighbours. (1 << k == 2^k)
+        if(distance < (1 << round)){
 
           log.info(s"> [id: $myself] Still need to go over more candidates. Forwarding '$m' message to next neighbour")
 
@@ -78,6 +77,8 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
         }
         else
         {
+          log.info(s"> [id: $myself] All neighbours got visited by incoming message. Replying back with [id: $id, round: $round]")
+
           //It already visited all neighbours on this side, so we need to stop propagating the message by replying back!
           sender() ! Reply(id, round)
         }
@@ -85,6 +86,7 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
       //
       else if(comparison == -1){
         //Process with identifier 'id' cannot be elected, so we stop propagating its election
+        log.info(s"[id: $myself] Election of ID[$id] stopped since is smaller than mine")
       }
       else
       {
@@ -92,33 +94,42 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
         // we've got elected! (notice how we start our elected cycle from the left)
         left foreach (_ ! Elected(id))
         elected = true
+
+        log.info(s"[id: $myself] I got ELECTED!!")
       }
     }
 
-    case Reply(id, round) => {
+    case m @ Reply(id, round) => {
 
       if(id != myself)
       {
+        log.info(s"[id: $myself] Forwarding incoming REPLY message since I'm not the final destination >> $m")
+
         //Forward incoming message in the same direction
         oppositeSideTo(sender()) foreach (_ ! Reply(id,round))
       }
       else{
-        //Did we already get a Reply message from the opposite side?
-        // If so, we can start a new election round (we've got the
-        // highest identity in both neighbourhoods of size 2^round
+        //Did we already get a Reply message from the opposite side? If so, we can start a new election round
+        // (we've got the highest identity in both neighbourhoods of size 2^round)
         if(gotReplyFrom(oppositeSideTo(sender()))) {
+
+          log.info(s"[id: $myself] Got second REPLY from opposite side!! Initiating next ELECTION round")
+
           left.foreach(_ ! Election(myself,round+1,1))
           right.foreach(_ ! Election(myself,round+1,1))
         }
         else
         {
+
+          log.info(s"[id: $myself] Got $m but still need to wait for a second REPLY from the opposite side")
+
           //Otherwise, we just flag the Reply message and wait for the opposite side
           markReplyFrom(sender())
         }
       }
     }
 
-    //We only process election messages only if it comes from our right neighbour
+    //We process election messages from our right neighbour only
     case Elected(id) if right.contains(sender())=> {
 
       leader = Option(id.asInstanceOf)
