@@ -95,7 +95,7 @@ class TestHirschbergSinclairLeaderElectionProcessForBidirectionalRings extends T
 
   }
 
-  it should "send ELECTED message to the LEFT side neighbour when incoming ID from the RIGTH equals process identifier" in {
+  it should "send ELECTED message to the LEFT side neighbour when incoming ID from the RIGHT equals process identifier" in {
 
     implicit val sender = rightNeighbour.ref
 
@@ -169,7 +169,7 @@ class TestHirschbergSinclairLeaderElectionProcessForBidirectionalRings extends T
     leftNeighbour.expectNoMsg()
   }
 
-  it should "properly initiate a new  ELECTION round" in {
+  it should "properly initiate a new ELECTION round after both neighbours on both sides reply back with a REPLY message" in {
 
     process ! Config(leftNeighbour.ref, rightNeighbour.ref)
 
@@ -180,5 +180,32 @@ class TestHirschbergSinclairLeaderElectionProcessForBidirectionalRings extends T
     leftNeighbour.expectMsg(1 second, "An ELECTION round was expected to be initiated on the LEFT but it didn't", Election(20,1,1))
   }
 
+  it must "assign himself as LEADER after receiving an ELECTION message from right neighbour with its own identifier" in {
+
+    implicit val sender = rightNeighbour.ref
+
+    process ! Config(leftNeighbour.ref, rightNeighbour.ref)
+    process ! Elected(20)
+
+    process.underlyingActor.leader shouldBe Some(20)
+    process.underlyingActor.done shouldBe true
+
+    leftNeighbour.expectNoMsg()
+
+  }
+
+  it must "should forward an ELECTED message to the LEFT when incoming process identifier does not match its own" in {
+
+    implicit val sender = rightNeighbour.ref
+
+    process ! Config(leftNeighbour.ref, rightNeighbour.ref)
+    process ! Elected(5)
+
+    process.underlyingActor.leader shouldBe Some(5)
+    process.underlyingActor.done shouldBe true
+
+    leftNeighbour.expectMsg(1 second, "The ELECTED message with new leader was not forwarded to the LEFT as expected", Elected(5))
+
+  }
 
 }

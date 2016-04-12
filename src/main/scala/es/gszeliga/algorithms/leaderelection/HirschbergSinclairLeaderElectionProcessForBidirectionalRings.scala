@@ -31,11 +31,12 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
   protected[leaderelection] var left = Option.empty[ActorRef]
   protected[leaderelection] var right = Option.empty[ActorRef]
 
-  private var replies = BitSet(2)
-  private var leader = Option.empty[ActorRef]
+  var leader = Option.empty[ID[V]]
+  var done = false
+  var elected = false
 
-  private var elected = false
-  private var done = false
+  private var replies = BitSet(2)
+
 
   private val LEFT_SIDE = 1
   private val RIGHT_SIDE = 0
@@ -65,7 +66,7 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
       //Greater than
       if(comparison == 1){
 
-        log.debug(s"> [id: $myself] Incoming id '$id' is greater than mine. Verifying if distance '$distance' covers round '$round'")
+        log.debug(s"> [id: $myself] Incoming id '$id' is greater than mine. Verifying if distance '$distance' fully covers round '$round'")
 
         //If still did not cover all of our neighbours. (1 << k == 2^k)
         if(distance < (1 << round)){
@@ -83,7 +84,7 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
           sender() ! Reply(id, round)
         }
       }
-      //
+      //Smaller than
       else if(comparison == -1){
         //Process with identifier 'id' cannot be elected, so we stop propagating its election
         log.info(s"[id: $myself] Election of ID[$id] stopped since is smaller than mine")
@@ -132,7 +133,9 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
     //We process election messages from our right neighbour only
     case Elected(id) if right.contains(sender())=> {
 
-      leader = Option(id.asInstanceOf)
+      log.info(s"[id: $myself] An ELECTED message with identifier '$id' was received")
+
+      leader = Option(id.asInstanceOf[ID[V]])
       done = true
 
       if(id != myself){
@@ -140,6 +143,7 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
         //Forward elected leader message following the same direction
         left foreach(_ ! Elected(id))
       }
+      else elected=true
 
     }
   }
