@@ -8,11 +8,11 @@ import org.scalatest.{FlatSpecLike, Matchers}
 /**
   * Created by guillermo on 12/01/16.
   */
-class TestLeLannChangRobertsLeaderElectionProcessForUnidirectionalRings extends TestKit(ActorSystem("test")) with FlatSpecLike with Matchers {
+class TestLeLannChangRobertsLeaderElectionProcessForUnidirectionalRings extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLike with Matchers {
 
   val process = TestActorRef(new LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings(20))
 
-  "A simple-election process" should "properly be configured" in {
+  "LeLann, Chang and Roberts leader election actor" should "properly be configured" in {
     process ! Config(testActor)
     process.underlyingActor.next shouldBe Some(testActor)
   }

@@ -10,14 +10,14 @@ import scala.concurrent.duration._
 /**
   * Created by guillermo on 1/02/16.
   */
-class TestHirschbergSinclairLeaderElectionProcessForBidirectionalRings extends TestKit(ActorSystem("bidirectional-ring")) with FlatSpecLike with Matchers {
+class TestHirschbergSinclairLeaderElectionProcessForBidirectionalRings extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLike with Matchers {
 
   val leftNeighbour = new TestProbe(system,"left-neighbour")
   val rightNeighbour = new TestProbe(system, "right-neighbour")
 
   val process = TestActorRef(new HirschbergSinclairLeaderElectionProcessForBidirectionalRings(20))
 
-  "A Hirschberg/Sinclair’s election algorithm" should "properly be configured" in {
+  "A Hirschberg/Sinclair’s election actor" should "properly be configured" in {
 
     process ! Config(leftNeighbour.ref,rightNeighbour.ref)
 

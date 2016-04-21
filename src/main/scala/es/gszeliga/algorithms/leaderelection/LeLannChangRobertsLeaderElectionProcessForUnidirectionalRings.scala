@@ -24,11 +24,11 @@ object LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings{
 //due to the reception of a START() message
 class LeLannChangRobertsLeaderElectionProcessForUnidirectionalRingsVariant[V](val myself: ID[V]) extends Actor with ActorLogging{
 
-  var next:Option[ActorRef] = None
-  var idmax:Option[ID[V]] = None
-  var elected = false
-  var leader: Option[ID[V]] = None
-  var done = false
+  protected[leaderelection] var next:Option[ActorRef] = None
+  protected[leaderelection] var idmax:Option[ID[V]] = None
+  protected[leaderelection] var elected = false
+  protected[leaderelection] var leader: Option[ID[V]] = None
+  protected[leaderelection] var done = false
 
   def receive = {
     case Config(ref) => {
@@ -95,11 +95,11 @@ class LeLannChangRobertsLeaderElectionProcessForUnidirectionalRingsVariant[V](va
 //Cost: O(n)^2
 class LeLannChangRobertsLeaderElectionProcessForUnidirectionalRings[V](val myself: ID[V]) extends Actor with ActorLogging{
 
-  var participates = false
-  var elected = false
-  var leader: Option[ID[V]] = None
-  var done = false
-  var next:Option[ActorRef] = None
+  protected[leaderelection] var participates = false
+  protected[leaderelection] var elected = false
+  protected[leaderelection] var leader: Option[ID[V]] = None
+  protected[leaderelection] var done = false
+  protected[leaderelection] var next:Option[ActorRef] = None
 
   def receive = {
     case Config(ref) => {
