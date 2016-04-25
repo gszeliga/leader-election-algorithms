@@ -38,11 +38,11 @@ class DolevKlaweRodehLeaderElectionProcessForUnidirectionalRings[ID](val myself:
   /*
   * Identity of the process for which Pi is competing
   * */
-  private var proxy_for = Option.empty[ID]
+  private[leaderelection] var proxy_for = Option.empty[ID]
 
-  private var leader = Option.empty[ID]
-  private var done = false
-  private var elected = false
+  private[leaderelection] var leader = Option.empty[ID]
+  private[leaderelection] var done = false
+  private[leaderelection] var elected = false
 
   def receive = {
     case Config(ref) => {
@@ -71,13 +71,18 @@ class DolevKlaweRodehLeaderElectionProcessForUnidirectionalRings[ID](val myself:
       }
       else if(id != maxid)
       {
+        log.debug(s"> [id: $myself] Becoming proxy of process [$id] from now on. ELECTION(2,$id) message will be emitted")
+
         //Forward the message to the next outgoing channel
         next foreach(_ ! Election(2,id))
+
         //Grab identity of the process for which we're competing
-        proxy_for = Option(id.asInstanceOf)
+        proxy_for = Option(id.asInstanceOf[ID])
       }
       else
       {
+        log.info(s"> [id: $myself] Process [$id] got elected!!. Forwarding newly elected process to the remaining members of the ring")
+
         //Incoming message has made a full turn on the ring, and consequently 'maxid' is the greatest identity
         next foreach (_ ! Elected(id, myself))
       }
@@ -93,8 +98,15 @@ class DolevKlaweRodehLeaderElectionProcessForUnidirectionalRings[ID](val myself:
       }
 
       //Forward the message if we're no longer a competitor
-      if(!competitor) next foreach (_ ! m)
-      else if(proxy_for exists(id => ordering.gt(id,max(id, maxid)))) {
+      if(!competitor) {
+
+        log.debug(s"> [id: $myself] No longer a competitor. Forwarding [$m] >> [${next map (_.path)}")
+
+        next foreach (_ ! m)
+      }
+      else if(proxy_for exists(proxy_id => ordering.gt(proxy_id,max(id.asInstanceOf[ID], maxid)))) {
+
+        log.debug(s"> [id: $myself] Proxy[$proxy_for] is greater than max(incoming=$id, max_id=$maxid). Updating 'max_id' and initiating new election round")
 
         //Update 'maxid' and start a new round
         proxy_for foreach (proxy_ref => {
@@ -104,18 +116,31 @@ class DolevKlaweRodehLeaderElectionProcessForUnidirectionalRings[ID](val myself:
 
       }
         //Since 'proxy_for' is not the highest identity, we stop competing
-      else competitor = false
+      else {
+
+        log.debug(s"> [id: $myself] No longer a competitor since Proxy[$proxy_for] smaller than max(incoming=$id, max_id=$maxid)")
+
+        competitor = false
+      }
 
     }
 
     case m @ Elected(whoIsElected,whoEmitted) => {
 
-      leader = Option(whoIsElected.asInstanceOf)
+      leader = Option(whoIsElected.asInstanceOf[ID])
+      elected = ordering.equiv(whoIsElected.asInstanceOf[ID],myself)
       done = true
-      elected = whoIsElected == myself
 
-      //If not the one who emitted the elected message (meaning it didn't make a full turn)
-      if(whoEmitted != myself) next foreach(_ ! m)
+      log.debug(s"> [id: $myself] Election finished [leader: $leader, elected: $elected]")
+
+      //If not the one who emitted the elected message (meaning it didn't make a full turn yet) then
+      // we forward the elected identifier to the remaining members
+      if(whoEmitted != myself) {
+
+        log.debug(s"> [id: $myself] Forwarding $m message to other fellows in the ring")
+
+        next foreach(_ ! m)
+      }
 
     }
   }
