@@ -1,4 +1,5 @@
 package es.gszeliga.algorithms.leaderelection
+/*
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 
@@ -6,36 +7,37 @@ import akka.actor.{Actor, ActorRef, ActorSystem, Props}
   * Created by guillermo on 27/04/16.
   */
 
-trait Ring[ID, C <: Configurable[ID,_]]{
+trait Ring[ID,R, C <: MemberProps[ID,_,R]]{
   def size(): Int
-  def members: Vector[Member[ID]]
-/*  def config(): Unit ={
+  def members(): Vector[Member[ID,R]]
+  def config()(implicit binder: Binder[ID,R]): Unit ={
 
-    /*
-    * - Dado el tipo de configurable, necesito algo (Binder) que gestine:
-    *  ++ Si es uni -> MEMBERS -> CM -> (M)
-    *  ++ Si es bi -> MEMBERS -> CM -> (M1, M2)
-    *
-    *  - Luego, cada miembro M ser configurado, tiene que esperar (M) o (M1,M2):
-     *
-     *   val b = Binder.using(members)
-     *
-     *   member.config(b.next())
-    *
-    * */
+    members().foldLeft(0)({
+      case (position,member) => {
 
-  }*/
+        val (pos,neightbours) = binder.bind(position,members())
+
+        member.configure(neightbours)
+
+        pos
+      }
+    })
+
+  }
 }
 
-trait Configurable[ID,A]{
+trait MemberProps[ID,A,N]{
   def props: Props
+  def config(references: N): Any
 }
 
-trait Unidirectional[ID,A] extends Configurable[ID,A]
-trait Bidirectional[ID,A] extends Configurable[ID,A]
+trait UnidirectionalMemberProps[ID,A,N] extends MemberProps[ID,A, Member[ID,N]]
+trait BidirectionalMemberProps[ID,A,N] extends MemberProps[ID,A, (Member[ID,N],Member[ID,N])]
 
-trait Member[ID]{
+trait Member[ID,N]{
+
   def ref(): ActorRef
+  def configure(neighbours: N)
   def id(): ID
 }
 
@@ -47,12 +49,12 @@ trait Bidirectional[ID] extends Member[ID]{
   def configure(left: Bidirectional[ID], right: Bidirectional[ID])
 }*/
 
-trait Binder[C <: Configurable[_, _]]{
-  def bind()
+trait Binder[ID, N]{
+  def bind(state: Int, ctx: Vector[Member[ID,N]]): (Int,N)
 }
 
-trait UBinder[Unidirectional]
-trait BBinder[Bidirectional]
+trait UBinder[ID,N] extends Binder[ID, Member[ID,N]]
+trait BBinder[ID,N] extends Binder[ID, (Member[ID,N],Member[ID,N])]
 
 object Ring {
 
@@ -65,18 +67,21 @@ object Ring {
 
   def tag[U] = new Tagger[U]
 
-  def unidirectional[ID, A[_] <: Actor](numberOfMembers: Int)(f: () => ID)(g: ID => Unidirectional[ID,A[ID]])(implicit system: ActorSystem) = {
+  def unidirectional[ID, A[_] <: Actor,N](numberOfMembers: Int)(f: () => ID)(g: ID => UnidirectionalMemberProps[ID,A[ID],N])(implicit system: ActorSystem) = {
     apply(numberOfMembers)(f)(g)
   }
 
-  private def apply[ID, A[_] <: Actor, C[_,_] <: Configurable[_,_]](numberOfMembers: Int)(f: () => ID)(g: ID => C[ID,A[ID]])(implicit system: ActorSystem) = new Ring[ID,C] {
+  private def apply[ID, A[_] <: Actor, N](numberOfMembers: Int)(f: () => ID)(g: ID => MemberProps[ID,A[ID],N])(implicit system: ActorSystem) = new Ring[ID,N,MemberProps[ID,A[ID],N]] {
     def size() = numberOfMembers
-    def members:Vector[Member[ID]] = Range(0,numberOfMembers).map(_ => {
+    def members():Vector[Member[ID,N]] = Range(0,numberOfMembers).map(_ => {
 
-      //Given C, I might need an instance of MemberCreator[C] with specifics (config, start) or pass an implicit Configurator[A[ID]]
-      new Member[ID] {
-        val id = f()
-        val ref = system.actorOf(g(id).props)
+      val currentId = f()
+      val member = g(currentId)
+
+      new Member[ID,N] {
+        val id = currentId
+        val ref = system.actorOf(member.props)
+        def configure(neighbours: N) = ref ! member.config(neighbours)
       }
 
     }).toVector
@@ -84,3 +89,4 @@ object Ring {
   }
 
 }
+*/
