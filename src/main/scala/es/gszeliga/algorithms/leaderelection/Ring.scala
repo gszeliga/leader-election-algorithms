@@ -1,92 +1,67 @@
 package es.gszeliga.algorithms.leaderelection
-/*
 
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.actor.{ActorRef, ActorSystem, Props}
 
 /**
-  * Created by guillermo on 27/04/16.
+  * Created by guillermo on 9/05/16.
   */
 
-trait Ring[ID,R, C <: MemberProps[ID,_,R]]{
-  def size(): Int
-  def members(): Vector[Member[ID,R]]
-  def config()(implicit binder: Binder[ID,R]): Unit ={
+trait RingNature
 
-    members().foldLeft(0)({
-      case (position,member) => {
+trait Unidirectional extends RingNature
 
-        val (pos,neightbours) = binder.bind(position,members())
+trait Bidirectional extends RingNature
 
-        member.configure(neightbours)
+trait Member[ID, RN <: RingNature] {
+  def id: ID
 
-        pos
-      }
-    })
-
-  }
+  def ref: ActorRef
 }
 
-trait MemberProps[ID,A,N]{
+trait MemberProps[ID, RN <: RingNature] {
   def props: Props
-  def config(references: N): Any
 }
 
-trait UnidirectionalMemberProps[ID,A,N] extends MemberProps[ID,A, Member[ID,N]]
-trait BidirectionalMemberProps[ID,A,N] extends MemberProps[ID,A, (Member[ID,N],Member[ID,N])]
+sealed class AssignmentContext[ID, RN <: RingNature]
 
-trait Member[ID,N]{
+sealed case class UAssignment[ID](val member: Member[ID, Unidirectional]) extends AssignmentContext[ID, Unidirectional]
 
-  def ref(): ActorRef
-  def configure(neighbours: N)
-  def id(): ID
+sealed case class BAssignment[ID](val left: Member[ID, Bidirectional], val right: Member[ID, Bidirectional]) extends AssignmentContext[ID, Bidirectional]
+
+trait Ring[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]] {
+  def size: Int
+
+  def members: Vector[Member[ID, RN]]
+
+  def elect[M](f: Member[ID, RN] => M) = members.foreach(m => m.ref ! f(m))
 }
-
-/*trait Unidirectional[ID] extends Member[ID]{
-  def configure(next: Unidirectional[ID])
-}
-
-trait Bidirectional[ID] extends Member[ID]{
-  def configure(left: Bidirectional[ID], right: Bidirectional[ID])
-}*/
-
-trait Binder[ID, N]{
-  def bind(state: Int, ctx: Vector[Member[ID,N]]): (Int,N)
-}
-
-trait UBinder[ID,N] extends Binder[ID, Member[ID,N]]
-trait BBinder[ID,N] extends Binder[ID, (Member[ID,N],Member[ID,N])]
 
 object Ring {
 
-  type Tagged[U] = { type Tag = U }
-  type @@[T, U] = T with Tagged[U]
+  type Designation[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]] = Vector[Member[ID, RN]] => Seq[(Member[ID, RN], CTX)]
 
-  class Tagger[U] {
-    def apply[T](t : T) : T @@ U = t.asInstanceOf[T @@ U]
-  }
+  def apply[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]](numberOfMembers: Int)(f: () => ID)(g: ID => MemberProps[ID, RN])(implicit system: ActorSystem, designation: Designation[ID, RN, CTX]) =
 
-  def tag[U] = new Tagger[U]
+    new Ring[ID, RN, CTX] {
 
-  def unidirectional[ID, A[_] <: Actor,N](numberOfMembers: Int)(f: () => ID)(g: ID => UnidirectionalMemberProps[ID,A[ID],N])(implicit system: ActorSystem) = {
-    apply(numberOfMembers)(f)(g)
-  }
+      val size = numberOfMembers
+      val members = Range(0, numberOfMembers).map(_ => {
 
-  private def apply[ID, A[_] <: Actor, N](numberOfMembers: Int)(f: () => ID)(g: ID => MemberProps[ID,A[ID],N])(implicit system: ActorSystem) = new Ring[ID,N,MemberProps[ID,A[ID],N]] {
-    def size() = numberOfMembers
-    def members():Vector[Member[ID,N]] = Range(0,numberOfMembers).map(_ => {
+        val currentId = f()
+        val memberProps = g(currentId)
 
-      val currentId = f()
-      val member = g(currentId)
+        new Member[ID, RN] {
+          val id = currentId
+          val ref = system.actorOf(memberProps.props)
+        }
 
-      new Member[ID,N] {
-        val id = currentId
-        val ref = system.actorOf(member.props)
-        def configure(neighbours: N) = ref ! member.config(neighbours)
+      }).toVector
+
+      def configure[M](f: CTX => M) = {
+        designation(members).foreach {
+          case (member, ctx) => member.ref ! f(ctx)
+        }
       }
-
-    }).toVector
-
-  }
+    }
 
 }
-*/
