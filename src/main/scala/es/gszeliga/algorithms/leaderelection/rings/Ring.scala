@@ -1,4 +1,4 @@
-package es.gszeliga.algorithms.leaderelection
+package es.gszeliga.algorithms.leaderelection.rings
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 
@@ -14,7 +14,6 @@ trait Bidirectional extends RingNature
 
 trait Member[ID, RN <: RingNature] {
   def id: ID
-
   def ref: ActorRef
 }
 
@@ -22,18 +21,19 @@ trait MemberProps[ID, RN <: RingNature] {
   def props: Props
 }
 
-sealed class AssignmentContext[ID, RN <: RingNature]
+trait UMemberProps[ID] extends MemberProps[ID, Unidirectional]
+trait BMemberProps[ID] extends MemberProps[ID, Bidirectional]
 
-sealed case class UAssignment[ID](val member: Member[ID, Unidirectional]) extends AssignmentContext[ID, Unidirectional]
-
-sealed case class BAssignment[ID](val left: Member[ID, Bidirectional], val right: Member[ID, Bidirectional]) extends AssignmentContext[ID, Bidirectional]
+abstract class AssignmentContext[ID, RN <: RingNature]
+case class UAssignment[ID](val member: Member[ID, Unidirectional]) extends AssignmentContext[ID, Unidirectional]
+case class BAssignment[ID](val left: Member[ID, Bidirectional], val right: Member[ID, Bidirectional]) extends AssignmentContext[ID, Bidirectional]
 
 trait Ring[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]] {
   def size: Int
 
   def members: Vector[Member[ID, RN]]
 
-  def elect[M](f: Member[ID, RN] => M) = members.foreach(m => m.ref ! f(m))
+  def beginElectionWith[M](f: Member[ID, RN] => M) = members.foreach(m => m.ref ! f(m))
 }
 
 object Ring {
@@ -63,5 +63,15 @@ object Ring {
         }
       }
     }
+
+  object Designations{
+
+    implicit def unidirectional[ID]: Designation[ID, Unidirectional, UAssignment[ID]] = {
+      members => members.zip(members.tail :+ members.head).map{case ((m1,m2)) => (m1, UAssignment(m2))}
+    }
+
+    implicit def bidirectional[ID]: Designation[ID, Bidirectional, BAssignment[ID]] = members => Seq.empty
+
+  }
 
 }

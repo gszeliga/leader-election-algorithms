@@ -1,14 +1,14 @@
-package es.gszeliga.algorithms.leaderelection
+package es.gszeliga.algorithms.leaderelection.rings
 
 import java.util.concurrent.TimeUnit.SECONDS
 import java.util.concurrent.{CopyOnWriteArraySet, CountDownLatch}
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.testkit.TestKit
-import es.gszeliga.algorithms.leaderelection.Ring.Designation
+import es.gszeliga.algorithms.leaderelection.rings.Ring.Designation
 import org.scalatest.{FlatSpecLike, Matchers}
-import scala.collection.JavaConversions._
 
+import scala.collection.JavaConversions._
 import scala.util.Random
 
 /**
@@ -65,8 +65,8 @@ class TestRing extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLi
       }
     }
 
-    val ring = Ring(10)(integers) { id => new MemberProps[Int, Unidirectional] {
-      def props = Props(new ConfigCollector(id, references, latch))
+    val ring = Ring(10)(integers) { id => new UMemberProps[Int] {
+      val props = Props(new ConfigCollector(id, references, latch))
     }
     }
 
@@ -89,12 +89,12 @@ class TestRing extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLi
       }
     }
 
-    val ring = Ring(10)(integers) { id => new MemberProps[Int, Unidirectional] {
+    val ring = Ring(10)(integers) { id => new UMemberProps[Int] {
       def props = Props(new StartCollector(id, latch))
     }
     }
 
-    ring.elect(_ => Start())
+    ring.beginElectionWith(_ => Start())
 
     latch.await(1, SECONDS) shouldBe true
   }
