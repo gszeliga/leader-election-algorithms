@@ -10,7 +10,7 @@ import scala.util.Random
 /**
   * Created by guillermo on 11/05/16.
   */
-class UnidirectionalRings {
+object UnidirectionalRings {
 
   private val integers: () => Int = Random.nextInt
 
@@ -18,12 +18,12 @@ class UnidirectionalRings {
 
     implicit val system = ActorSystem()
 
-    val ring = Ring(5)(integers)(id => new UMemberProps[Int] {
+    val ring = Ring(3)(integers)(id => new UMemberProps[Int] {
       def props = DolevKlaweRodehLeaderElectionProcessForUnidirectionalRings.props(id)
     })
 
-    ring.configure(assignment => Config(assignment.member.ref))
-    ring.beginElectionWith(_ => Start())
+    ring.configure(designation => Config(designation.member.ref))
+    ring.begin(_ => Start())
 
   }
 

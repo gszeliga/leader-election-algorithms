@@ -12,32 +12,28 @@ import scala.collection.BitSet
 
 object HirschbergSinclairLeaderElectionProcessForBidirectionalRings{
 
-  type ID[V] = Comparable[V]
-
   sealed case class Config(left: ActorRef, right: ActorRef)
   sealed case class Start()
-  sealed case class Election[V](id: ID[V], round: Int, distance: Int)
-  sealed case class Reply[V](id: ID[V], round: Int)
-  sealed case class Elected[V](id: ID[V])
+  sealed case class Election[ID](id: ID, round: Int, distance: Int)
+  sealed case class Reply[ID](id: ID, round: Int)
+  sealed case class Elected[ID](id: ID)
 
-  def props[V](pid: ID[V]) = Props(new HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](pid))
+  def props[ID](pid: ID)(implicit ordering: Ordering[ID]) = Props(new HirschbergSinclairLeaderElectionProcessForBidirectionalRings[ID](pid))
 
 }
 
 //Hirschberg and Sinclair’s election algorithm
 //Cost: O(n log n)
-class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself: ID[V]) extends Actor with ActorLogging{
+class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[ID](val myself: ID)(implicit val ordering: Ordering[ID]) extends Actor with ActorLogging{
 
   protected[leaderelection] var left = Option.empty[ActorRef]
   protected[leaderelection] var right = Option.empty[ActorRef]
 
-  var leader = Option.empty[ID[V]]
-  var done = false
-  var elected = false
+  protected[leaderelection] var leader = Option.empty[ID]
+  protected[leaderelection] var done = false
+  protected[leaderelection] var elected = false
 
   private var replies = BitSet(2)
-
-
   private val LEFT_SIDE = 1
   private val RIGHT_SIDE = 0
 
@@ -61,10 +57,8 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
 
     case m @ Election(id,round,distance) => {
 
-      val comparison = id.compareTo(myself)
-
       //Greater than
-      if(comparison == 1){
+      if(ordering.gt(id.asInstanceOf[ID],myself)){
 
         log.debug(s"> [id: $myself] Incoming id '$id' is greater than mine. Verifying if distance '$distance' fully covers round '$round'")
 
@@ -85,7 +79,7 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
         }
       }
       //Smaller than
-      else if(comparison == -1){
+      else if(ordering.lt(id.asInstanceOf[ID], myself)){
         //Process with identifier 'id' cannot be elected, so we stop propagating its election
         log.info(s"[id: $myself] Election of ID[$id] stopped since is smaller than mine")
       }
@@ -133,9 +127,9 @@ class HirschbergSinclairLeaderElectionProcessForBidirectionalRings[V](val myself
     //We process election messages from our right neighbour only
     case Elected(id) if right.contains(sender())=> {
 
-      log.info(s"[id: $myself] An ELECTED message with identifier '$id' was received")
+      log.info(s"[id: $myself] Member [$id] already elected!!")
 
-      leader = Option(id.asInstanceOf[ID[V]])
+      leader = Option(id.asInstanceOf[ID])
       done = true
 
       if(id != myself){

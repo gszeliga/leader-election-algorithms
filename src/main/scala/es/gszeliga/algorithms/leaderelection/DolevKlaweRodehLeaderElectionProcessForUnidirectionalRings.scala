@@ -25,7 +25,7 @@ class DolevKlaweRodehLeaderElectionProcessForUnidirectionalRings[ID](val myself:
   protected[leaderelection] var next = Option.empty[ActorRef]
 
   /*
-  * Indicates if p i is currently competing on behalf of some process identity or is only relaying messages.
+  * Indicates if Pi is currently competing on behalf of some process identity or is only relaying messages.
   * The two other local variables are meaningful only when competitor Pi is equal to true.
   * */
   protected[leaderelection] var competitor = false
@@ -133,7 +133,7 @@ class DolevKlaweRodehLeaderElectionProcessForUnidirectionalRings[ID](val myself:
 
       log.debug(s"> [id: $myself] Election finished [leader: $leader, elected: $elected]")
 
-      //If not the one who emitted the elected message (meaning it didn't make a full turn yet) then
+      //If not the one who emitted the elected message (meaning it didn't make a full ring turn yet) then
       // we forward the elected identifier to the remaining members
       if(whoEmitted != myself) {
 

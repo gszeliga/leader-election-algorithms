@@ -94,7 +94,7 @@ class TestRing extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLi
     }
     }
 
-    ring.beginElectionWith(_ => Start())
+    ring.begin(_ => Start())
 
     latch.await(1, SECONDS) shouldBe true
   }
