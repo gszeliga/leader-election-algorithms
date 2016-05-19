@@ -5,7 +5,8 @@ import java.util.concurrent.{CopyOnWriteArraySet, CountDownLatch}
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.testkit.TestKit
-import es.gszeliga.algorithms.leaderelection.rings.Ring.Designation
+import es.gszeliga.algorithms.leaderelection.rings.Ring.Assignment
+import es.gszeliga.algorithms.leaderelection.rings.Ring.Props.unidirectional
 import org.scalatest.{FlatSpecLike, Matchers}
 
 import scala.collection.JavaConversions._
@@ -22,7 +23,7 @@ class TestRing extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLi
 
   case class Start()
 
-  implicit val unidirectionalDesignation: Designation[Int, Unidirectional, UAssignment[Int]] = members => members.map(m => (m, UAssignment(m)))
+  implicit val unidirectionalDesignation: Assignment[Int, Unidirectional, UAssignment[Int]] = members => members.map(m => (m, UAssignment(m)))
 
   class ShallowActor[ID](val id: ID) extends Actor {
     def receive = {
@@ -32,20 +33,14 @@ class TestRing extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLi
 
   "Ring" should "have an specific number of nodes" in {
 
-    val ring = Ring(10)(integers) { id => new MemberProps[Int, Unidirectional] {
-      def props = Props(new ShallowActor(id))
-    }
-    }
+    val ring = Ring(10)(integers) { id => unidirectional(Props(new ShallowActor(id)))}
 
     ring.size shouldBe 10
   }
 
   it should "create as many nodes as requested" in {
 
-    val ring = Ring(10)(integers) { id => new MemberProps[Int, Unidirectional] {
-      def props = Props(new ShallowActor(id))
-    }
-    }
+    val ring = Ring(10)(integers) { id => unidirectional(Props(new ShallowActor(id)))}
 
     ring.members should have length 10
   }
@@ -65,10 +60,7 @@ class TestRing extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLi
       }
     }
 
-    val ring = Ring(10)(integers) { id => new UMemberProps[Int] {
-      val props = Props(new ConfigCollector(id, references, latch))
-    }
-    }
+    val ring = Ring(10)(integers) { id => unidirectional(Props(new ConfigCollector(id, references, latch)))}
 
     ring.configure(ctx => Config(ctx.member.ref))
 
@@ -89,10 +81,7 @@ class TestRing extends TestKit(ActorSystem("test-actor-system")) with FlatSpecLi
       }
     }
 
-    val ring = Ring(10)(integers) { id => new UMemberProps[Int] {
-      def props = Props(new StartCollector(id, latch))
-    }
-    }
+    val ring = Ring(10)(integers) { id => unidirectional(Props(new StartCollector(id, latch)))}
 
     ring.begin(_ => Start())
 

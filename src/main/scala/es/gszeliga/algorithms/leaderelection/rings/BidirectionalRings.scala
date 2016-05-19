@@ -3,7 +3,8 @@ package es.gszeliga.algorithms.leaderelection.rings
 import akka.actor.ActorSystem
 import es.gszeliga.algorithms.leaderelection.HirschbergSinclairLeaderElectionProcessForBidirectionalRings
 import es.gszeliga.algorithms.leaderelection.HirschbergSinclairLeaderElectionProcessForBidirectionalRings.{Config, Start}
-import es.gszeliga.algorithms.leaderelection.rings.Ring.Designations._
+import es.gszeliga.algorithms.leaderelection.rings.Ring.Assignments._
+import es.gszeliga.algorithms.leaderelection.rings.Ring.Props.bidirectional
 
 import scala.util.Random
 
@@ -18,11 +19,9 @@ object BidirectionalRings {
 
     implicit val system = ActorSystem()
 
-    val ring = Ring(25)(integers)(id => new BMemberProps[Int] {
-      def props = HirschbergSinclairLeaderElectionProcessForBidirectionalRings.props(id)
-    })
+    val ring = Ring(25)(integers)(id => bidirectional(HirschbergSinclairLeaderElectionProcessForBidirectionalRings.props(id)))
 
-    ring.configure(designation => Config(designation.left.ref, designation.right.ref))
+    ring.configure(assignment => Config(assignment.left.ref, assignment.right.ref))
     ring.begin(_ => Start())
 
   }

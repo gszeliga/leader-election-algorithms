@@ -6,37 +6,35 @@ import akka.actor.{ActorRef, ActorSystem, Props}
   * Created by guillermo on 9/05/16.
   */
 
-trait RingNature
-trait Unidirectional extends RingNature
-trait Bidirectional extends RingNature
+sealed trait RingNature
+sealed trait Unidirectional extends RingNature
+sealed trait Bidirectional extends RingNature
 
 trait Member[ID, RN <: RingNature] {
   def id: ID
   def ref: ActorRef
 }
 
-trait MemberProps[ID, RN <: RingNature] {
+sealed trait MemberProps[ID, RN <: RingNature] {
   def props: Props
 }
 
-trait UMemberProps[ID] extends MemberProps[ID, Unidirectional]
-trait BMemberProps[ID] extends MemberProps[ID, Bidirectional]
+sealed trait AssignmentContext[ID, RN <: RingNature]
+sealed case class UAssignment[ID](val member: Member[ID, Unidirectional]) extends AssignmentContext[ID, Unidirectional]
+sealed case class BAssignment[ID](val left: Member[ID, Bidirectional], val right: Member[ID, Bidirectional]) extends AssignmentContext[ID, Bidirectional]
 
-trait AssignmentContext[ID, RN <: RingNature]
-case class UAssignment[ID](val member: Member[ID, Unidirectional]) extends AssignmentContext[ID, Unidirectional]
-case class BAssignment[ID](val left: Member[ID, Bidirectional], val right: Member[ID, Bidirectional]) extends AssignmentContext[ID, Bidirectional]
-
-trait Ring[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]] {
+sealed trait Ring[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]] {
   def size: Int
   def members: Vector[Member[ID, RN]]
   def begin[M](f: Member[ID, RN] => M) = members.foreach(m => m.ref ! f(m))
+  def configure[M](f: CTX => M)
 }
 
 object Ring {
 
-  type Designation[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]] = Vector[Member[ID, RN]] => Seq[(Member[ID, RN], CTX)]
+  type Assignment[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]] = Vector[Member[ID, RN]] => Seq[(Member[ID, RN], CTX)]
 
-  def apply[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]](numberOfMembers: Int)(f: () => ID)(g: ID => MemberProps[ID, RN])(implicit system: ActorSystem, designation: Designation[ID, RN, CTX]) =
+  def apply[ID, RN <: RingNature, CTX <: AssignmentContext[ID, RN]](numberOfMembers: Int)(f: () => ID)(g: ID => MemberProps[ID, RN])(implicit system: ActorSystem, assignments: Assignment[ID, RN, CTX]): Ring[ID, RN, CTX] =
 
     new Ring[ID, RN, CTX] {
 
@@ -54,19 +52,29 @@ object Ring {
       }).toVector
 
       def configure[M](f: CTX => M) = {
-        designation(members).foreach {
+        assignments(members).foreach {
           case (member, ctx) => member.ref ! f(ctx)
         }
       }
     }
 
-  object Designations {
+  object Props{
+    def unidirectional[ID](p: Props): MemberProps[ID, Unidirectional] = new MemberProps[ID, Unidirectional] {
+      def props = p
+    }
 
-    implicit def unidirectional[ID]: Designation[ID, Unidirectional, UAssignment[ID]] = {
+    def bidirectional[ID](p: Props): MemberProps[ID, Bidirectional] = new MemberProps[ID, Bidirectional] {
+      def props = p
+    }
+  }
+
+  object Assignments {
+
+    implicit def forUnidirectional[ID]: Assignment[ID, Unidirectional, UAssignment[ID]] = {
       members => members.zip(members.tail :+ members.head).map { case ((m1, m2)) => (m1, UAssignment(m2)) }
     }
 
-    implicit def bidirectional[ID]: Designation[ID, Bidirectional, BAssignment[ID]] = members => {
+    implicit def forBidirectional[ID]: Assignment[ID, Bidirectional, BAssignment[ID]] = members => {
 
       if (members.length == 1) Seq((members.head, BAssignment(members.head, members.head)))
       else if (members.length == 2) {
